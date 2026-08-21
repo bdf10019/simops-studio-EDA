@@ -14,6 +14,9 @@ from simops_studio.cases import expand_cases
 from simops_studio.eda import create_adapter
 from simops_studio.models import ConfigurationError
 from simops_studio.pcb import analyze_kicad_pcb
+from simops_studio.database import SimulationDatabase
+from simops_studio.eda import AdapterUnavailable
+from simops_studio.workflow import run_project
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -34,6 +37,13 @@ def _parser() -> argparse.ArgumentParser:
 
     pcb_check = commands.add_parser("pcb-check", help="analyze the configured KiCad PCB")
     pcb_check.add_argument("project", type=Path)
+
+    run = commands.add_parser("run", help="run or resume the complete simulation batch")
+    run.add_argument("project", type=Path)
+    run.add_argument("--force", action="store_true", help="rerun completed cases")
+
+    status = commands.add_parser("status", help="show persisted run status")
+    status.add_argument("project", type=Path)
     return parser
 
 
@@ -103,6 +113,14 @@ def _pcb_check(path: Path) -> int:
     return 0 if analysis["status"] == "PASS" else 1
 
 
+def _status(path: Path) -> int:
+    config = load_project_config(path)
+    database = SimulationDatabase(config.database_path)
+    database.initialize()
+    print(json.dumps(database.summary(config.config_hash[:12]), indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -114,7 +132,13 @@ def main(argv: list[str] | None = None) -> int:
             return _simulate(args.project, args.case_index)
         if args.command == "pcb-check":
             return _pcb_check(args.project)
+        if args.command == "run":
+            summary = run_project(args.project, force=args.force)
+            print(json.dumps(summary, indent=2, ensure_ascii=False))
+            return 0 if summary["statuses"].get("FAILED", 0) == 0 else 1
+        if args.command == "status":
+            return _status(args.project)
         return 2
-    except ConfigurationError as exc:
-        print(f"configuration error: {exc}", file=sys.stderr)
+    except (ConfigurationError, AdapterUnavailable, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2

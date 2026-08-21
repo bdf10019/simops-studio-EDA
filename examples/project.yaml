@@ -1,5 +1,6 @@
 project:
   name: pdn-decoupling-study
+  revision: 1
   description: Synthetic PDN parameter sweep for workflow demonstration.
 
 simulation:

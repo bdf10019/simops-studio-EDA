@@ -17,6 +17,7 @@ def expand_cases(config: ProjectConfig) -> list[SimulationCase]:
         parameters.update(dict(zip(keys, values, strict=True)))
         identity = {
             "project": config.name,
+            "config_hash": config.config_hash,
             "adapter": config.simulation.adapter,
             "frequency": {
                 "start_hz": config.simulation.frequency.start_hz,
@@ -36,4 +37,3 @@ def expand_cases(config: ProjectConfig) -> list[SimulationCase]:
             )
         )
     return cases
-
