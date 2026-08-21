@@ -1,4 +1,4 @@
-"""End-to-end orchestration before report generation."""
+"""End-to-end orchestration, persistence, and artifact generation."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from simops_studio.eda import AdapterUnavailable, create_adapter
 from simops_studio.hashing import hash_file
 from simops_studio.pcb import analyze_kicad_pcb
 from simops_studio.scheduler import SimulationScheduler
+from simops_studio.reporting import generate_report
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -39,7 +40,8 @@ def run_project(
     pcb_analysis: dict[str, Any] | None = None
     if config.pcb is not None:
         pcb_analysis = analyze_kicad_pcb(config.pcb.path, config.pcb.rules)
-        _write_json(config.output_dir / "pcb_analysis.json", pcb_analysis)
+        public_pcb_analysis = {**pcb_analysis, "source": config.pcb.path.name}
+        _write_json(config.output_dir / "pcb_analysis.json", public_pcb_analysis)
         database.add_event(
             run_id,
             None,
@@ -115,7 +117,6 @@ def run_project(
         "trained_this_run": model_metrics is not None,
         "metrics": model_metrics,
     }
-    _write_json(config.output_dir / "run_summary.json", summary)
     _write_json(config.output_dir / "events.json", database.event_rows(run_id))
     manifest = {
         "schema_version": 1,
@@ -145,4 +146,13 @@ def run_project(
         ],
     }
     _write_json(config.output_dir / "manifest.json", manifest)
+    artifacts = generate_report(
+        database=database,
+        run_id=run_id,
+        output_dir=config.output_dir,
+        project_name=config.name,
+        target_impedance_ohm=config.simulation.target_impedance_ohm,
+    )
+    summary["artifacts"] = artifacts
+    _write_json(config.output_dir / "run_summary.json", summary)
     return summary

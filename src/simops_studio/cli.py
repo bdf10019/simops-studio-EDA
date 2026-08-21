@@ -18,6 +18,8 @@ from simops_studio.database import SimulationDatabase
 from simops_studio.eda import AdapterUnavailable
 from simops_studio.workflow import run_project
 from simops_studio.ai import RiskModelError, score_cases, train_risk_model
+from simops_studio.dashboard import serve_dashboard
+from simops_studio.reporting import generate_report
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -52,6 +54,17 @@ def _parser() -> argparse.ArgumentParser:
 
     predict = commands.add_parser("predict", help="preview risk scores for configured cases")
     predict.add_argument("project", type=Path)
+
+    report = commands.add_parser("report", help="regenerate CSV, JSON, charts, and HTML")
+    report.add_argument("project", type=Path)
+
+    dashboard = commands.add_parser("dashboard", help="serve the local read-only dashboard")
+    dashboard.add_argument("project", type=Path)
+    dashboard.add_argument("--host", default="127.0.0.1")
+    dashboard.add_argument("--port", type=int, default=8080)
+
+    demo = commands.add_parser("demo", help="run the bundled end-to-end demonstration")
+    demo.add_argument("--force", action="store_true")
     return parser
 
 
@@ -161,6 +174,36 @@ def _predict(path: Path) -> int:
     return 0
 
 
+def _report(path: Path) -> int:
+    config = load_project_config(path)
+    database = SimulationDatabase(config.database_path)
+    database.initialize()
+    artifacts = generate_report(
+        database=database,
+        run_id=config.config_hash[:12],
+        output_dir=config.output_dir,
+        project_name=config.name,
+        target_impedance_ohm=config.simulation.target_impedance_ohm,
+    )
+    print(json.dumps(artifacts, indent=2))
+    return 0
+
+
+def _dashboard(path: Path, host: str, port: int) -> int:
+    config = load_project_config(path)
+    database = SimulationDatabase(config.database_path)
+    database.initialize()
+    serve_dashboard(
+        database=database,
+        run_id=config.config_hash[:12],
+        project_name=config.name,
+        output_dir=config.output_dir,
+        host=host,
+        port=port,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -182,6 +225,19 @@ def main(argv: list[str] | None = None) -> int:
             return _train_ai(args.project)
         if args.command == "predict":
             return _predict(args.project)
+        if args.command == "report":
+            return _report(args.project)
+        if args.command == "dashboard":
+            return _dashboard(args.project, args.host, args.port)
+        if args.command == "demo":
+            root = Path(__file__).resolve().parents[2]
+            summary = run_project(
+                root / "examples" / "project.yaml",
+                force=args.force,
+                train_ai=True,
+            )
+            print(json.dumps(summary, indent=2, ensure_ascii=False))
+            return 0
         return 2
     except (ConfigurationError, AdapterUnavailable, RiskModelError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
