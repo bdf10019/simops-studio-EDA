@@ -1,0 +1,46 @@
+project:
+  name: pdn-decoupling-study
+  description: Synthetic PDN parameter sweep for workflow demonstration.
+
+simulation:
+  adapter: builtin-pdn
+  frequency:
+    start_hz: 1000
+    stop_hz: 100000000
+    points: 401
+  target_impedance_ohm: 0.12
+  base:
+    plane_resistance_ohm: 0.008
+    plane_inductance_h: 8.0e-10
+    capacitance_f: 4.7e-6
+    capacitor_esr_ohm: 0.012
+    capacitor_esl_h: 4.0e-10
+  sweep:
+    capacitance_f: [1.0e-6, 2.2e-6, 4.7e-6, 1.0e-5]
+    capacitor_esr_ohm: [0.006, 0.012, 0.03]
+    plane_inductance_h: [5.0e-10, 8.0e-10]
+
+workflow:
+  retries: 1
+  priority: risk-first
+  workers:
+    - name: local-worker-a
+      capabilities: [builtin-pdn]
+    - name: local-worker-b
+      capabilities: [builtin-pdn]
+
+pcb:
+  path: pcb/pdn_demo.kicad_pcb
+  rules:
+    min_track_width_mm: 0.20
+    min_via_drill_mm: 0.20
+    min_annular_ring_mm: 0.10
+
+ai:
+  enabled: true
+  model_path: ../models/local/risk_model.joblib
+  min_samples: 12
+
+output_dir: ../outputs/demo
+database_path: ../outputs/demo/simops.db
+

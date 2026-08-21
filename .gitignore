@@ -1,0 +1,33 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+.vs/
+
+# Generated simulation data, reports, databases, and trained models.
+outputs/*
+!outputs/.gitkeep
+models/local/*
+!models/local/.gitkeep
+
+# Local secrets and machine-specific settings.
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.joblib
+*.pkl
+
+# Optional EDA generated files.
+*.raw
+*.log
+*.bak
+*.lck
+*-backups/
+
