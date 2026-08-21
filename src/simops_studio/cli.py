@@ -17,6 +17,7 @@ from simops_studio.pcb import analyze_kicad_pcb
 from simops_studio.database import SimulationDatabase
 from simops_studio.eda import AdapterUnavailable
 from simops_studio.workflow import run_project
+from simops_studio.ai import RiskModelError, score_cases, train_risk_model
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -41,9 +42,16 @@ def _parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="run or resume the complete simulation batch")
     run.add_argument("project", type=Path)
     run.add_argument("--force", action="store_true", help="rerun completed cases")
+    run.add_argument("--train-ai", action="store_true", help="train risk model after simulation")
 
     status = commands.add_parser("status", help="show persisted run status")
     status.add_argument("project", type=Path)
+
+    train = commands.add_parser("train-ai", help="train risk model from completed cases")
+    train.add_argument("project", type=Path)
+
+    predict = commands.add_parser("predict", help="preview risk scores for configured cases")
+    predict.add_argument("project", type=Path)
     return parser
 
 
@@ -121,6 +129,38 @@ def _status(path: Path) -> int:
     return 0
 
 
+def _train_ai(path: Path) -> int:
+    config = load_project_config(path)
+    database = SimulationDatabase(config.database_path)
+    database.initialize()
+    metadata = train_risk_model(
+        database.training_rows(config.config_hash[:12]),
+        config.ai.model_path,
+        min_samples=config.ai.min_samples,
+    )
+    print(json.dumps(metadata, indent=2))
+    return 0
+
+
+def _predict(path: Path) -> int:
+    config = load_project_config(path)
+    scoring = score_cases(expand_cases(config), config.ai.model_path)
+    print(
+        json.dumps(
+            {
+                "source": scoring.source,
+                "out_of_domain_count": scoring.out_of_domain_count,
+                "cases": [
+                    {"case_id": case.case_id, "risk_score": round(case.risk_score, 6)}
+                    for case in scoring.cases
+                ],
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -133,12 +173,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "pcb-check":
             return _pcb_check(args.project)
         if args.command == "run":
-            summary = run_project(args.project, force=args.force)
+            summary = run_project(args.project, force=args.force, train_ai=args.train_ai)
             print(json.dumps(summary, indent=2, ensure_ascii=False))
             return 0 if summary["statuses"].get("FAILED", 0) == 0 else 1
         if args.command == "status":
             return _status(args.project)
+        if args.command == "train-ai":
+            return _train_ai(args.project)
+        if args.command == "predict":
+            return _predict(args.project)
         return 2
-    except (ConfigurationError, AdapterUnavailable, ValueError) as exc:
+    except (ConfigurationError, AdapterUnavailable, RiskModelError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from simops_studio import __version__
+from simops_studio.ai import RiskModelError, score_cases, train_risk_model
 from simops_studio.cases import expand_cases
 from simops_studio.config import load_project_config
 from simops_studio.database import SimulationDatabase, utc_now
@@ -22,7 +23,9 @@ def _write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def run_project(project_path: str | Path, *, force: bool = False) -> dict[str, Any]:
+def run_project(
+    project_path: str | Path, *, force: bool = False, train_ai: bool = False
+) -> dict[str, Any]:
     config = load_project_config(project_path)
     config.output_dir.mkdir(parents=True, exist_ok=True)
     database = SimulationDatabase(config.database_path)
@@ -45,6 +48,19 @@ def run_project(project_path: str | Path, *, force: bool = False) -> dict[str, A
         )
 
     cases = expand_cases(config)
+    scoring_source = "disabled"
+    out_of_domain_count = 0
+    if config.ai.enabled:
+        scoring = score_cases(cases, config.ai.model_path)
+        cases = scoring.cases
+        scoring_source = scoring.source
+        out_of_domain_count = scoring.out_of_domain_count
+        database.add_event(
+            run_id,
+            None,
+            "INFO",
+            f"risk scoring source={scoring_source}, out_of_domain={out_of_domain_count}",
+        )
     for case in cases:
         database.upsert_case(run_id, case, force=force)
 
@@ -59,6 +75,29 @@ def run_project(project_path: str | Path, *, force: bool = False) -> dict[str, A
         priority=config.workflow.priority,
     )
     dispatch = scheduler.run(cases)
+    model_metrics: dict[str, Any] | None = None
+    if train_ai and config.ai.enabled:
+        try:
+            model_metrics = train_risk_model(
+                database.training_rows(run_id),
+                config.ai.model_path,
+                min_samples=config.ai.min_samples,
+            )
+            _write_json(config.output_dir / "model_metrics.json", model_metrics)
+            rescoring = score_cases(cases, config.ai.model_path)
+            cases = rescoring.cases
+            scoring_source = "trained-model"
+            out_of_domain_count = rescoring.out_of_domain_count
+            for case in cases:
+                database.upsert_case(run_id, case)
+            database.add_event(
+                run_id,
+                None,
+                "INFO",
+                f"risk model trained with {model_metrics['training_samples']} samples",
+            )
+        except RiskModelError as exc:
+            database.add_event(run_id, None, "WARNING", f"risk model not trained: {exc}")
     run_status = "COMPLETED"
     if dispatch.failed:
         run_status = "COMPLETED_WITH_ERRORS"
@@ -69,6 +108,13 @@ def run_project(project_path: str | Path, *, force: bool = False) -> dict[str, A
     summary = database.summary(run_id)
     summary["dispatch"] = asdict(dispatch)
     summary["pcb_status"] = None if pcb_analysis is None else pcb_analysis["status"]
+    summary["ai"] = {
+        "enabled": config.ai.enabled,
+        "scoring_source": scoring_source,
+        "out_of_domain_count": out_of_domain_count,
+        "trained_this_run": model_metrics is not None,
+        "metrics": model_metrics,
+    }
     _write_json(config.output_dir / "run_summary.json", summary)
     _write_json(config.output_dir / "events.json", database.event_rows(run_id))
     manifest = {
@@ -86,6 +132,13 @@ def run_project(project_path: str | Path, *, force: bool = False) -> dict[str, A
         "adapter": adapter.name,
         "pcb_file": None if config.pcb is None else config.pcb.path.name,
         "pcb_sha256": None if pcb_analysis is None else pcb_analysis["sha256"],
+        "risk_model": None
+        if model_metrics is None
+        else {
+            "type": model_metrics["model_type"],
+            "sha256": model_metrics["model_sha256"],
+            "training_samples": model_metrics["training_samples"],
+        },
         "limitations": [
             "The built-in solver is a lumped-element workflow reference model.",
             "Final engineering decisions require validated production tools and measurements.",
@@ -93,4 +146,3 @@ def run_project(project_path: str | Path, *, force: bool = False) -> dict[str, A
     }
     _write_json(config.output_dir / "manifest.json", manifest)
     return summary
-
