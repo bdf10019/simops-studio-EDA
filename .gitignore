@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+build/
+dist/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -11,6 +13,7 @@ venv/
 # Generated simulation data, reports, databases, and trained models.
 outputs/*
 !outputs/.gitkeep
+!outputs/README.md
 models/local/*
 !models/local/.gitkeep
 
@@ -30,4 +33,3 @@ models/local/*
 *.bak
 *.lck
 *-backups/
-

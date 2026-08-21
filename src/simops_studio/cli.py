@@ -80,7 +80,7 @@ def _validate(path: Path) -> int:
         "adapter": config.simulation.adapter,
         "case_count": case_count,
         "workers": [worker.name for worker in config.workflow.workers],
-        "output_dir": str(config.output_dir),
+        "output_dir": config.output_dir.name,
     }
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
@@ -130,7 +130,8 @@ def _pcb_check(path: Path) -> int:
     if config.pcb is None:
         raise ConfigurationError("project does not define a pcb section")
     analysis = analyze_kicad_pcb(config.pcb.path, config.pcb.rules)
-    print(json.dumps(analysis, indent=2, ensure_ascii=False))
+    public_analysis = {**analysis, "source": config.pcb.path.name}
+    print(json.dumps(public_analysis, indent=2, ensure_ascii=False))
     return 0 if analysis["status"] == "PASS" else 1
 
 

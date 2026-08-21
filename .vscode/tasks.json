@@ -5,18 +5,25 @@
       "label": "SimOps: verify",
       "type": "shell",
       "command": "powershell",
-      "args": ["-ExecutionPolicy", "Bypass", "-File", "scripts/verify.ps1"],
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/verify.ps1"],
       "group": {"kind": "test", "isDefault": true},
       "problemMatcher": []
     },
     {
-      "label": "SimOps: demo",
+      "label": "SimOps: run demo",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/run-demo.ps1"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "SimOps: dashboard",
       "type": "shell",
       "command": "python",
-      "args": ["-m", "simops_studio", "run", "examples/project.yaml", "--train-ai"],
-      "group": "build",
+      "args": ["-m", "simops_studio", "dashboard", "examples/project.yaml"],
+      "isBackground": true,
       "problemMatcher": []
     }
   ]
 }
-
