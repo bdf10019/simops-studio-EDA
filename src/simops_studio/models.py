@@ -34,6 +34,7 @@ class SimulationConfig:
     target_impedance_ohm: float
     base: dict[str, float]
     sweep: dict[str, tuple[float, ...]] = field(default_factory=dict)
+    adapter_options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -83,3 +84,26 @@ class ProjectConfig:
     pcb: PcbConfig | None
     ai: AiConfig
 
+
+@dataclass(frozen=True)
+class SimulationCase:
+    case_id: str
+    sequence: int
+    parameters: dict[str, float]
+    input_hash: str
+    risk_score: float = 0.5
+
+
+@dataclass(frozen=True)
+class SimulationResult:
+    case_id: str
+    adapter: str
+    frequencies_hz: tuple[float, ...]
+    impedance_ohm: tuple[float, ...]
+    max_impedance_ohm: float
+    min_impedance_ohm: float
+    worst_frequency_hz: float
+    resonant_frequency_hz: float
+    violation_fraction: float
+    passed: bool
+    duration_ms: float

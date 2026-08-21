@@ -122,6 +122,7 @@ def load_project_config(path: str | Path) -> ProjectConfig:
         ),
         base=pdn_base,
         sweep=sweep,
+        adapter_options=_mapping(simulation_raw.get("adapter_options", {}), "simulation.adapter_options"),
     )
 
     workflow_raw = _mapping(raw.get("workflow"), "workflow")
@@ -206,4 +207,3 @@ def load_project_config(path: str | Path) -> ProjectConfig:
         pcb=pcb_config,
         ai=ai_config,
     )
-

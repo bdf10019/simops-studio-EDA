@@ -10,7 +10,10 @@ from pathlib import Path
 
 from simops_studio import __version__
 from simops_studio.config import load_project_config
+from simops_studio.cases import expand_cases
+from simops_studio.eda import create_adapter
 from simops_studio.models import ConfigurationError
+from simops_studio.pcb import analyze_kicad_pcb
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -24,6 +27,13 @@ def _parser() -> argparse.ArgumentParser:
     validate.add_argument("project", type=Path)
 
     commands.add_parser("doctor", help="show optional EDA tool availability")
+
+    simulate = commands.add_parser("simulate", help="run one deterministic simulation case")
+    simulate.add_argument("project", type=Path)
+    simulate.add_argument("--case-index", type=int, default=0)
+
+    pcb_check = commands.add_parser("pcb-check", help="analyze the configured KiCad PCB")
+    pcb_check.add_argument("project", type=Path)
     return parser
 
 
@@ -56,6 +66,43 @@ def _doctor() -> int:
     return 0
 
 
+def _simulate(path: Path, case_index: int) -> int:
+    config = load_project_config(path)
+    cases = expand_cases(config)
+    if case_index < 0 or case_index >= len(cases):
+        raise ConfigurationError(f"case index must be between 0 and {len(cases) - 1}")
+    adapter = create_adapter(config.simulation.adapter, config.simulation.adapter_options)
+    result = adapter.simulate(
+        cases[case_index],
+        config.simulation.frequency,
+        config.simulation.target_impedance_ohm,
+    )
+    print(
+        json.dumps(
+            {
+                "case_id": result.case_id,
+                "adapter": result.adapter,
+                "status": "PASS" if result.passed else "FAIL",
+                "max_impedance_ohm": result.max_impedance_ohm,
+                "worst_frequency_hz": result.worst_frequency_hz,
+                "violation_fraction": result.violation_fraction,
+                "duration_ms": result.duration_ms,
+            },
+            indent=2,
+        )
+    )
+    return 0 if result.passed else 1
+
+
+def _pcb_check(path: Path) -> int:
+    config = load_project_config(path)
+    if config.pcb is None:
+        raise ConfigurationError("project does not define a pcb section")
+    analysis = analyze_kicad_pcb(config.pcb.path, config.pcb.rules)
+    print(json.dumps(analysis, indent=2, ensure_ascii=False))
+    return 0 if analysis["status"] == "PASS" else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -63,8 +110,11 @@ def main(argv: list[str] | None = None) -> int:
             return _validate(args.project)
         if args.command == "doctor":
             return _doctor()
+        if args.command == "simulate":
+            return _simulate(args.project, args.case_index)
+        if args.command == "pcb-check":
+            return _pcb_check(args.project)
         return 2
     except ConfigurationError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
-
