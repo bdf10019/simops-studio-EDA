@@ -1,6 +1,6 @@
 # Third-party notices
 
-SimOps Studio source code is released under the MIT License. Runtime dependencies retain
+Current original-code licensing and historical permissions are described in [LICENSE_INFORMATION.md](LICENSE_INFORMATION.md). Runtime dependencies retain
 their own upstream licenses:
 
 - Matplotlib — PSF-based license

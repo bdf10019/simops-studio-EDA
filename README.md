@@ -1,5 +1,7 @@
 # SimOps Studio
 
+授權狀態：現行原創程式未另行授予通用開源授權；歷史版本與第三方／資料授權另見 [LICENSE_INFORMATION.md](LICENSE_INFORMATION.md)。
+
 SimOps Studio 是一套可在本機執行的 EDA 模擬自動化工作台。它把工程參數驗證、
 參數展開、任務派工、失敗重試、斷點續跑、AI 風險排序、PCB 基礎規則檢查與
 可追溯報告串成一條完整流程。
@@ -116,5 +118,5 @@ outputs/             資料庫與報告（Git 忽略）
 - 儀表板只允許 `127.0.0.1`、`localhost` 或 `::1`，不是具認證的正式服務。
 - 範例 PCB 檢查不等同原生 clearance/connectivity DRC；集總模型不等同場求解器。
 
-完整技術邊界請見 [docs/LIMITATIONS.md](docs/LIMITATIONS.md)。授權採 MIT；第三方套件
+完整技術邊界請見 [docs/LIMITATIONS.md](docs/LIMITATIONS.md)。現行原創程式未另行授予通用開源授權，見 [授權說明](LICENSE_INFORMATION.md)；第三方套件
 保留其原授權，詳見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
